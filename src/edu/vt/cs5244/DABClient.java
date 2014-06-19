@@ -9,7 +9,6 @@ package edu.vt.cs5244;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.Map;
@@ -28,10 +27,17 @@ public class DABClient implements DABAgent{
     Socket connection; 
     
     //TODO-maybe make this an enum?
-    private static final String CHAR_RTN = "\n";
     private static final String GET_SIZE = "SIZE?";
     private static final String INIT = "INIT!";
-//    private static final String INIT = "INIT!";
+    private static final String DRAW = "DRAW!"; //INT, INT, EDGE
+    private static final String EDGES = "EDGES?";//INT, INT
+    private static final String OWNER = "OWNER?";//INT, INT
+    private static final String TURN = "TURN?";//RETURNS PLAYER
+    private static final String SCORE = "SCORE?";//PLAYER
+    private static final String QUIT = "QUIT!";
+
+    private static  BufferedReader in;
+    private static PrintWriter pw;
     
     
     @Override
@@ -41,16 +47,12 @@ public class DABClient implements DABAgent{
         
         try {
                 this.connection = new Socket(server, 5244);
-//                BufferedOutputStream bos = 
-//                        new BufferedOutputStream(connection.getOutputStream());
-//
-//            /** Instantiate an OutputStreamWriter object with the optional character
-//              * encoding.
-//             */
-//                OutputStreamWriter osw = new OutputStreamWriter(bos, "US-ASCII");
-//
-                this.readResponse();
+                
+                pw = new PrintWriter(connection.getOutputStream(), true);
+                in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
 
+                this.readResponse();
+                
                 isConnected = true;
 
             } catch (IOException ex) {
@@ -79,33 +81,22 @@ public class DABClient implements DABAgent{
     @Override
     public void init(int size) {
         
-        try {
-            this.sendCommand(INIT);
-            this.sendInt(size);
-            this.readAck();
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
+        this.sendCommand(INIT);
+        this.sendInt(size);
+        this.readAck();
+
     }
 
     @Override
     public int getSize() {
         
         int size = 0;
-        try {
-            this.sendCommand(GET_SIZE);
-            this.readAck();
-            size = this.getInt();
-            
-           
-            
-        } catch (IOException ex) {
-           ex.printStackTrace();
-        }
 
+        this.sendCommand(GET_SIZE);
+        this.readAck();
+        size = this.getInt();
         
         return size;
-        
     }
 
     @Override
@@ -114,13 +105,23 @@ public class DABClient implements DABAgent{
     }
 
     @Override
-    public Player getOwnerAt(int i, int i1) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public Player getOwnerAt(int row, int col) {
+        this.sendCommand(OWNER);
+        this.sendInt(row);
+        this.sendInt(col);
+        this.readAck();
+        return this.getPlayer();
     }
 
     @Override
-    public boolean drawEdge(int i, int i1, Edge edge) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public boolean drawEdge(int row, int col, Edge edge) {
+       
+        this.sendCommand(DRAW);
+        this.sendInt(row);
+        this.sendInt(col);
+        this.sendEdge(edge);
+        this.readAck();
+        return this.getBln();
     }
 
     @Override
@@ -133,45 +134,105 @@ public class DABClient implements DABAgent{
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
     
-    public Object readResponse() throws IOException{
-        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-        String line = null;
+    public String readResponse(){
+
+        String line;
         
-        line = in.readLine();
+        try {
+            line = in.readLine();
+        } catch (IOException ex) {
+            throw new DABClientException();
+        }
         
-        System.out.println(line);  
-        
+        //FIXME-Need to get rid of debug statements
+        debug(line);
+     
         return line;
     }
     
-    public void sendCommand(Object command) throws IOException{
-        
-        OutputStream output = connection.getOutputStream();
-        PrintWriter pw = new PrintWriter(output);
+    public void sendCommand(Object command){       
+       
+        String resp;
         
         pw.println(command);
-        pw.flush();
+        resp = this.readResponse();
         
-        this.readResponse();
-        
+        if(!resp.startsWith("OK.") && !resp.startsWith("GOT")){
+           throw new DABClientException();
+        }else if(resp.startsWith("DEX")){
+            throw new DABException();
+        }
+ 
     }
     
-    public void sendInt(Integer num) throws IOException{
+    public void sendInt(Integer num){
         
         this.sendCommand(num);
+         
+        
     }
     
-    public void readAck() throws IOException{
-        this.readResponse();
-
+    public void readAck(){
+        
+        String ackMsg; 
+        ackMsg = this.readResponse();
+        
+        if(!ackMsg.startsWith("ACK!")){
+            throw new DABException();
+        }
     }
     
 
-    private int getInt() throws IOException {
-        this.readResponse();
+    private int getInt(){
         
-        return 3;
+        int myInt; 
         
+        try{
+            myInt = Integer.parseInt(this.readResponse());
+        }catch(NumberFormatException ex){
+            throw new DABClientException();
+        }
+        
+        return myInt;
+        
+    }
+    
+    private static void debug(String msg){
+    
+        System.out.println("Client: " + msg);
+    }
+
+    private void sendEdge(Edge edge) {
+        
+        this.sendCommand(edge);
+    }
+
+    private boolean getBln() {
+       
+        String resp = this.readResponse();
+        boolean wasDrawn = false; 
+        
+        if(resp.equalsIgnoreCase("true")){
+            wasDrawn = true;
+        }
+        
+        return wasDrawn;
+    }
+
+    private Player getPlayer() {
+        
+        String response = this.readResponse();
+        Player player;
+        
+        if(response.equals(Player.ONE)){
+            player = Player.ONE;
+        }else if(response.equalsIgnoreCase("None")){
+            player = null;
+        }else{
+            player = Player.TWO;
+        }
+        
+        return player;
     }
     
 }

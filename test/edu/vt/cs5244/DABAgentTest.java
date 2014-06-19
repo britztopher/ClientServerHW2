@@ -47,8 +47,7 @@ public class DABAgentTest {
     
     @After
     public void tearDown() throws IOException {
-        System.setOut(null);
-        System.setErr(null);
+
     }
 
     /**
@@ -83,9 +82,16 @@ public class DABAgentTest {
     }
     
     @Test
-    public void testInit() throws IOException {      
-        client.init(3);
+    public void testInit() throws IOException { 
+        client.init(4);
         client.getSize();
+        client.drawEdge(1, 1, Edge.TOP); //ONE
+        client.drawEdge(1, 1, Edge.BOTTOM);//2
+        client.drawEdge(1, 1, Edge.LEFT);//1
+        client.drawEdge(1, 1, Edge.RIGHT);//2
+        client.drawEdge(1, 1, Edge.TOP);
+        
+        client.getOwnerAt(1, 1);
  
     }
     
