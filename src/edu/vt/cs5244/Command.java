@@ -27,8 +27,8 @@ public enum Command {
     }
     
     public String getValue(){
-        return this.command;
+        return this.command;       
     }
+                
  
-    
 }

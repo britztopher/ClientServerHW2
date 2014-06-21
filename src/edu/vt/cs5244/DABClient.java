@@ -90,7 +90,7 @@ public class DABClient implements DABAgent{
         
         int size = 0;
 
-        this.sendCommand(Command.SIZE);
+        this.sendCommand(Command.SIZE.getValue());
         this.readAck();
         size = this.getInt();
         
@@ -102,7 +102,7 @@ public class DABClient implements DABAgent{
 
         Set<Edge> edgeSet = new HashSet<>();
         
-        this.sendCommand(Command.EDGES);
+        this.sendCommand(Command.EDGES.getValue());
         this.sendInt(row);
         this.sendInt(col);
         this.readAck();
@@ -128,7 +128,7 @@ public class DABClient implements DABAgent{
 
     @Override
     public Player getOwnerAt(int row, int col) {
-        this.sendCommand(Command.OWNER);
+        this.sendCommand(Command.OWNER.getValue());
         this.sendInt(row);
         this.sendInt(col);
         this.readAck();
@@ -138,7 +138,7 @@ public class DABClient implements DABAgent{
     @Override
     public boolean drawEdge(int row, int col, Edge edge) {
        
-        this.sendCommand(Command.DRAW);
+        this.sendCommand(Command.DRAW.getValue());
         this.sendInt(row);
         this.sendInt(col);
         this.sendEdge(edge);
@@ -151,12 +151,12 @@ public class DABClient implements DABAgent{
        
         Map<Player, Integer> scoreMap = new HashMap<>();
         
-        this.sendCommand(Command.SCORE);
+        this.sendCommand(Command.SCORE.getValue());
         this.sendCommand(Player.ONE);
         this.readAck();
         scoreMap.put(Player.ONE, this.getInt());
         
-        this.sendCommand(Command.SCORE);
+        this.sendCommand(Command.SCORE.getValue());
         this.sendCommand(Player.TWO);
         this.readAck();
         scoreMap.put(Player.TWO, this.getInt());
@@ -201,13 +201,8 @@ public class DABClient implements DABAgent{
         pw.println(command);
         resp = this.readResponse();
         
-        if(resp == null || (!resp.startsWith("OK.") && !resp.startsWith("GOT."))){ 
-          
-            if(!resp.startsWith("ACK.")){
-                throw new DABException();
-            }else{
-                throw new DABClientException();
-            }
+        if(resp == null || (!resp.startsWith("OK.") && !resp.startsWith("GOT"))){ 
+            throw new DABClientException();
         }
  
     }
