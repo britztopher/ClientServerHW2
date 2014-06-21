@@ -11,10 +11,11 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 
 //TODO-I NEED TO remove printstacktraces and refactor exception handling
@@ -24,21 +25,18 @@ import java.util.logging.Logger;
  */
 public class DABClient implements DABAgent{
 
-    Socket connection; 
+    private Socket connection;     
+    //using an arraylist because we only have a couple of commands to loop 
+    //through and a hashmap would be overkill
+    private final ArrayList<String> pcrList = new ArrayList<>();
     
-    //TODO-maybe make this an enum?
-    private static final String GET_SIZE = "SIZE?";
-    private static final String INIT = "INIT!";
-    private static final String DRAW = "DRAW!"; //INT, INT, EDGE
-    private static final String EDGES = "EDGES?";//INT, INT
-    private static final String OWNER = "OWNER?";//INT, INT
-    private static final String TURN = "TURN?";//RETURNS PLAYER
-    private static final String SCORE = "SCORE?";//PLAYER
-    private static final String QUIT = "QUIT!";
-
     private static  BufferedReader in;
     private static PrintWriter pw;
     
+    public DABClient(){
+        pcrList.add("ACK,");
+        pcrList.add("GOT.");
+    }
     
     @Override
     public boolean connect(String server) {
@@ -70,7 +68,7 @@ public class DABClient implements DABAgent{
                 
                 try {
                     this.connection.close();
-                    System.out.print("Connection Closed");
+                    System.out.println("Connection Closed");
                 } catch (IOException ex) {
                     
                 }
@@ -80,8 +78,8 @@ public class DABClient implements DABAgent{
 
     @Override
     public void init(int size) {
-        
-        this.sendCommand(INIT);
+
+        this.sendCommand(Command.INIT.getValue());
         this.sendInt(size);
         this.readAck();
 
@@ -92,7 +90,7 @@ public class DABClient implements DABAgent{
         
         int size = 0;
 
-        this.sendCommand(GET_SIZE);
+        this.sendCommand(Command.SIZE);
         this.readAck();
         size = this.getInt();
         
@@ -100,13 +98,37 @@ public class DABClient implements DABAgent{
     }
 
     @Override
-    public Set<Edge> getEdgesAt(int i, int i1) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public Set<Edge> getEdgesAt(int row, int col) {
+
+        Set<Edge> edgeSet = new HashSet<>();
+        
+        this.sendCommand(Command.EDGES);
+        this.sendInt(row);
+        this.sendInt(col);
+        this.readAck();
+
+        //get the number of edges so I can know how many iterations I need to 
+        //make to getEdge
+        int numOfEdges = this.getInt();
+        
+        if(numOfEdges>4){
+            throw new DABClientException();
+        }
+       
+        for(int i = 0; i < numOfEdges; i++){
+            
+            Edge edge = this.getEdge();
+            
+            edgeSet.add(edge);
+            
+        }
+        
+        return edgeSet;
     }
 
     @Override
     public Player getOwnerAt(int row, int col) {
-        this.sendCommand(OWNER);
+        this.sendCommand(Command.OWNER);
         this.sendInt(row);
         this.sendInt(col);
         this.readAck();
@@ -116,7 +138,7 @@ public class DABClient implements DABAgent{
     @Override
     public boolean drawEdge(int row, int col, Edge edge) {
        
-        this.sendCommand(DRAW);
+        this.sendCommand(Command.DRAW);
         this.sendInt(row);
         this.sendInt(col);
         this.sendEdge(edge);
@@ -126,20 +148,42 @@ public class DABClient implements DABAgent{
 
     @Override
     public Map<Player, Integer> getScores() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+       
+        Map<Player, Integer> scoreMap = new HashMap<>();
+        
+        this.sendCommand(Command.SCORE);
+        this.sendCommand(Player.ONE);
+        this.readAck();
+        scoreMap.put(Player.ONE, this.getInt());
+        
+        this.sendCommand(Command.SCORE);
+        this.sendCommand(Player.TWO);
+        this.readAck();
+        scoreMap.put(Player.TWO, this.getInt());
+        
+        return scoreMap;
     }
 
     @Override
     public Player getTurn() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        this.sendCommand(Command.TURN.getValue());
+        this.readAck();
+        return this.getPlayer();
     }
     
-    public String readResponse(){
+    @Override
+    public void quitGame(){
+        this.sendCommand(Command.QUIT.getValue());
+        this.disconnect();
+    }
+    
+    
+    private String readResponse(){
 
         String line;
         
         try {
-            line = in.readLine();
+            line = in.readLine().toUpperCase();
         } catch (IOException ex) {
             throw new DABClientException();
         }
@@ -150,29 +194,31 @@ public class DABClient implements DABAgent{
         return line;
     }
     
-    public void sendCommand(Object command){       
+    private void sendCommand(Object command){       
        
         String resp;
         
         pw.println(command);
         resp = this.readResponse();
         
-        if(!resp.startsWith("OK.") && !resp.startsWith("GOT")){
-           throw new DABClientException();
-        }else if(resp.startsWith("DEX")){
-            throw new DABException();
+        if(resp == null || (!resp.startsWith("OK.") && !resp.startsWith("GOT."))){ 
+          
+            if(!resp.startsWith("ACK.")){
+                throw new DABException();
+            }else{
+                throw new DABClientException();
+            }
         }
  
     }
     
-    public void sendInt(Integer num){
+    private void sendInt(Integer num){
         
         this.sendCommand(num);
-         
         
     }
     
-    public void readAck(){
+    private void readAck(){
         
         String ackMsg; 
         ackMsg = this.readResponse();
@@ -196,7 +242,7 @@ public class DABClient implements DABAgent{
         return myInt;
         
     }
-    
+
     private static void debug(String msg){
     
         System.out.println("Client: " + msg);
@@ -212,8 +258,19 @@ public class DABClient implements DABAgent{
         String resp = this.readResponse();
         boolean wasDrawn = false; 
         
-        if(resp.equalsIgnoreCase("true")){
-            wasDrawn = true;
+        switch(resp){
+            case "TRUE":{
+                wasDrawn = true;
+                break;
+            }
+            case "FALSE":{
+                wasDrawn = false;
+            }
+            
+            default:{
+                throw new DABClientException();
+            }
+            
         }
         
         return wasDrawn;
@@ -224,15 +281,49 @@ public class DABClient implements DABAgent{
         String response = this.readResponse();
         Player player;
         
-        if(response.equals(Player.ONE)){
+        if(response.equals("ONE")){
             player = Player.ONE;
-        }else if(response.equalsIgnoreCase("None")){
+        }else if(response.equals("NONE")){
             player = null;
         }else{
             player = Player.TWO;
         }
         
         return player;
+    }
+
+    private Edge getEdge() {
+        
+        String res = this.readResponse();
+        Edge edge = null;
+        
+        switch(res){
+            
+            case "LEFT":{
+                edge = Edge.LEFT;
+                break;
+            }
+            
+            case "RIGHT":{
+                edge = Edge.RIGHT;
+                break;
+            }
+            
+            case "TOP":{
+                edge = Edge.TOP;
+                break;
+            }
+            
+            case "BOTTOM":{
+                edge = Edge.BOTTOM;
+                break;
+            }
+            default:{
+                throw new DABClientException();
+            }
+        }
+        
+        return edge;
     }
     
 }

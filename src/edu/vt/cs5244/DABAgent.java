@@ -41,4 +41,6 @@ public interface DABAgent extends DABEngine {
      *
      */
     public void disconnect();
+    
+    public void quitGame();
 }
