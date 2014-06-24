@@ -276,12 +276,16 @@ public class DABClient implements DABAgent{
         String response = this.readResponse();
         Player player;
         
-        if(response.equals("ONE")){
-            player = Player.ONE;
-        }else if(response.equals("NONE")){
-            player = null;
-        }else{
-            player = Player.TWO;
+        switch (response) {
+            case "ONE":
+                player = Player.ONE;
+                break;
+            case "NONE":
+                player = null;
+                break;
+            default:
+                player = Player.TWO;
+                break;
         }
         
         return player;

@@ -2,6 +2,9 @@ package edu.vt.cs5244;
 
 import java.io.*;
 import java.net.*;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * This is the beginning of an implementation, which you can use as a starting point.
@@ -13,7 +16,17 @@ public class DABServerWorker implements Runnable {
     private final BufferedReader clReader;
     private final Socket clSocket;
     private final PrintWriter clWriter;
-    private DABEngine theDAB;
+    
+    private static final String ACCEPTED = "accepted";
+    private static final String ACK = "ack";
+    private static final String BADPARAM = "badParam";
+    private static final String BADCMD = "badCmd";
+    private static final String VALID = "valid";
+    private static final String EXCEPTION = "exception";
+    private static final String VALUE = "value";
+  
+    private final DABEngine theDAB;
+    
 
     public DABServerWorker(Socket cSock) throws IOException {
         
@@ -28,7 +41,7 @@ public class DABServerWorker implements Runnable {
         // Note that this engine is instantiated once per worker instance, thus once per thread, 
         // and so it is not accessibly by any of the other concurrent threads.
         // PENDING: You must uncomment the following line
-        //theDAB = new HW1_DAB();
+        theDAB = new HW1_DAB();
     }
 
     /**
@@ -68,7 +81,7 @@ public class DABServerWorker implements Runnable {
 
             // Now we'll welcome the client to our server 
             // PENDING: DDP requires this message to have a specific format; the line below is non-compliant!
-            clWriter.println("Welcome to the DDP server!");
+            clWriter.println("OK. WELCOME!");
 
             // We'll use this to flag that we need to exit the while-loop.
             boolean done = false;
@@ -81,44 +94,82 @@ public class DABServerWorker implements Runnable {
 
                     switch(command) {
                         case "INIT!":
-                            // PENDING implementation
+                            this.writeResp(ACCEPTED);
+                            int boardSize = this.getInt();
+                            theDAB.init(boardSize);
+                            this.writeResp(ACK);
                             break;
                         case "SIZE?":
-                            // PENDING implementation
+                            this.writeResp(ACCEPTED);
+                            this.writeResp(ACK);
+                            int size = theDAB.getSize();
+                            writeResp(VALUE, String.valueOf(size));
                             break;
                         case "EDGES?":
-                            // PENDING implementation
+                            this.writeResp(ACCEPTED);
+                            int edgeRow = this.getInt();
+                            int edgeCol = this.getInt();
+                            Set<Edge> theEdges = theDAB.getEdgesAt(edgeRow, edgeCol);
+                            if(theEdges.isEmpty()){
+                                writeResp(VALUE, 0);
+                            }else{
+                                for(Edge edge: theEdges){
+                                    this.writeResp(VALUE, this.edgeToString(edge));
+                                }
+                            }
+                            
+                            this.writeResp(ACK);
                             break;
                         case "OWNER?":
-                            // PENDING implementation
+                            this.writeResp(ACCEPTED);
+                            int ownerRow = this.getInt();
+                            int ownerCol = this.getInt();
+                            Player owner = theDAB.getOwnerAt(ownerRow, ownerCol);
+                            writeResp(VALUE, owner);
                             break;
                         case "SCORE?":
-                            // PENDING implementation
+                            this.writeResp(ACCEPTED);
+                            Player player = getPlayer();
+                            Map<Player, Integer> scoreMap = theDAB.getScores();
+                            writeResp(VALUE, scoreMap.get(player));
+                            writeResp(ACK);
                             break;
                         case "TURN?":
-                            // PENDING implementation
+                            this.writeResp(ACCEPTED);
+                            Player turn = theDAB.getTurn();
+                            writeResp(VALUE, turn);
+                            writeResp(ACK);
                             break;
                         case "DRAW!":
-                            // PENDING implementation
+                            writeResp(ACCEPTED);
+                            int row = this.getInt();
+                            int col = this.getInt();
+                            Edge drawnEdge = this.parseEdge(); 
+                            boolean respVal = theDAB.drawEdge(row, col, drawnEdge);
+                            writeResp(VALUE,respVal); 
+                            writeResp(ACK);
                             break;
                         case "QUIT!":
-                            // PENDING implementation
+                            writeResp(ACCEPTED);
                             // To disconnect, we'll flag that we're done the while-loop
                             done = true;
                             break;
                         default:
-                            // PENDING implementation
+                           
+                            
                             break;
                     }
                 } catch (DABServerParamException dpe) {
                     // This will catch any exceptions we throw elsewhere, 
                     // which indicate bad parameters.  
                     // We need to send a particular DDP response in this case.
-                    // PENDING implementation
+                    
+                    this.writeResp(BADPARAM);
+                    
                 } catch (DABException de) {
                     // This will catch any DABException thrown by the HW1_DAB.
                     // We need to send a particular DDP response in this case.
-                    // PENDING implementation
+                    this.writeResp(EXCEPTION);
                 }
             }
             
@@ -144,5 +195,171 @@ public class DABServerWorker implements Runnable {
         
         // The end of the run() method lets this thread exit gracefully, thus discarding
         // this worker instance (and our client's HW1_DAB instance along with it).
+    }
+
+    private void writeResp(Object... args) {
+        
+            switch((String)args[0]){
+                
+                case ACCEPTED:{
+                    clWriter.println("OK. COMMAND ACCEPTED.");
+                    break;
+                }
+                case BADCMD:{
+                    clWriter.println("NO. COMMAND NOT RECOGNIZED.");
+                    break;
+                }
+                case VALID:{
+                    clWriter.println("GOT VALID PARAMETER.");
+                    break;
+                }
+                case BADPARAM:{
+                    clWriter.println("BAD PARAMETER NOT VALID.");
+                    break;
+                }
+                case ACK:{
+                    clWriter.println("ACK!");
+                    break;
+                }
+                case VALUE:{
+                    clWriter.println(args[1]);
+                    break;
+                }
+                case EXCEPTION:{
+                    clWriter.println("DEX!");
+                    break;
+                }
+                
+            }
+    }
+    
+    private String readRequest(){
+
+        String line;
+        
+        try {
+            line = clReader.readLine();
+        } catch (IOException ex) {
+            throw new DABClientException();
+        }
+        
+        //FIXME: Need to get rid of debug statements
+        debug(line);
+     
+        return line;
+    }
+
+    private String parsePlyr(Player player) {
+        
+        String plyr;
+        
+        if(player == Player.ONE){
+            plyr = "ONE";
+        }else{
+            plyr = "TWO";
+        }
+        
+        return plyr;
+    }
+
+    private Edge parseEdge() {
+        
+        Edge thisEdge = null;
+        String edgeReq = this.readRequest();
+        
+        switch(edgeReq){
+            case "TOP":{
+                thisEdge = Edge.TOP;
+                break;
+            }
+                
+            case "BOTTOM":{
+                thisEdge = Edge.BOTTOM;
+                break;
+            }
+                
+            case "LEFT":{
+                thisEdge = Edge.LEFT;
+                break;
+            }
+                
+            case "RIGHT":{
+                thisEdge = Edge.RIGHT;
+                break;
+            }
+            default:{
+                writeResp(BADPARAM);
+            }
+        }
+        
+        return thisEdge;
+    }
+    
+        private String edgeToString(Edge edge) {
+        
+        String thisEdge = null;
+           
+        if(edge == Edge.TOP){
+            thisEdge = "TOP";
+        }else if(edge == Edge.BOTTOM){
+            thisEdge = "BOTTOM";
+        }else if(edge == Edge.LEFT){
+            thisEdge = "LEFT";
+        }else if(edge == Edge.RIGHT ){
+            thisEdge = "RIGHT";
+        }
+       
+        return thisEdge;
+        
+    }
+        
+    private String getStringValue(int value){
+        
+        String strValue = "";
+        
+        try{
+            strValue = String.valueOf(value);
+        }catch(IllegalArgumentException iae){
+            writeResp("dex");
+        }
+            
+        return strValue;
+    }
+    
+    private int getInt(){
+        
+        int myInt; 
+        
+        try{
+            myInt = Integer.parseInt(this.readRequest());
+        }catch(NumberFormatException ex){
+            throw new DABClientException();
+        }
+        
+        writeResp(VALID);
+        
+        return myInt;
+        
+    }
+    
+    private Player getPlayer() {
+        
+        String response = this.readRequest();
+        Player player;
+        
+        if(response.equals("ONE")){
+            player = Player.ONE;
+        }else if(response.equals("NONE")){
+            player = null;
+        }else{
+            player = Player.TWO;
+        }
+        
+        return player;
+    }
+    
+    private static void debug(String msg){
+    
+        System.out.println("Server: " + msg);
     }
 }
