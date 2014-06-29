@@ -2,7 +2,6 @@ package edu.vt.cs5244;
 
 import java.io.*;
 import java.net.*;
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.Set;
 
@@ -23,6 +22,7 @@ public class DABServerWorker implements Runnable {
     private static final String BADCMD = "badCmd";
     private static final String VALID = "valid";
     private static final String EXCEPTION = "exception";
+    private static final String NONE = "None";
     private static final String VALUE = "value";
   
     private final DABEngine theDAB;
@@ -125,6 +125,7 @@ public class DABServerWorker implements Runnable {
                             int ownerRow = this.getInt();
                             int ownerCol = this.getInt();
                             Player owner = theDAB.getOwnerAt(ownerRow, ownerCol);
+                            writeResp(ACK);
                             writeResp(VALUE, owner);
                             break;
                         case "SCORE?":
@@ -146,8 +147,8 @@ public class DABServerWorker implements Runnable {
                             int col = this.getInt();
                             Edge drawnEdge = this.parseEdge(); 
                             boolean respVal = theDAB.drawEdge(row, col, drawnEdge);
-                            writeResp(VALUE,respVal); 
                             writeResp(ACK);
+                            writeResp(VALUE,respVal);
                             break;
                         case "QUIT!":
                             writeResp(ACCEPTED);
@@ -156,6 +157,7 @@ public class DABServerWorker implements Runnable {
                             break;
                         default:
                            
+                            writeResp(BADCMD);
                             
                             break;
                     }
@@ -198,7 +200,7 @@ public class DABServerWorker implements Runnable {
     }
 
     private void writeResp(Object... args) {
-        
+       
             switch((String)args[0]){
                 
                 case ACCEPTED:{
@@ -222,8 +224,15 @@ public class DABServerWorker implements Runnable {
                     break;
                 }
                 case VALUE:{
-                    clWriter.println(args[1]);
+                    
+                    if(args[1]==null){
+                        clWriter.println(NONE);
+                    }else{
+                        clWriter.println(args[1]);
+                    }
+                    
                     break;
+                    
                 }
                 case EXCEPTION:{
                     clWriter.println("DEX!");
@@ -249,18 +258,6 @@ public class DABServerWorker implements Runnable {
         return line;
     }
 
-    private String parsePlyr(Player player) {
-        
-        String plyr;
-        
-        if(player == Player.ONE){
-            plyr = "ONE";
-        }else{
-            plyr = "TWO";
-        }
-        
-        return plyr;
-    }
 
     private Edge parseEdge() {
         
@@ -313,18 +310,6 @@ public class DABServerWorker implements Runnable {
         
     }
         
-    private String getStringValue(int value){
-        
-        String strValue = "";
-        
-        try{
-            strValue = String.valueOf(value);
-        }catch(IllegalArgumentException iae){
-            writeResp("dex");
-        }
-            
-        return strValue;
-    }
     
     private int getInt(){
         
@@ -347,12 +332,16 @@ public class DABServerWorker implements Runnable {
         String response = this.readRequest();
         Player player;
         
-        if(response.equals("ONE")){
-            player = Player.ONE;
-        }else if(response.equals("NONE")){
-            player = null;
-        }else{
-            player = Player.TWO;
+        switch (response) {
+            case "ONE":
+                player = Player.ONE;
+                break;
+            case "NONE":
+                player = null;
+                break;
+            default:
+                player = Player.TWO;
+                break;
         }
         
         return player;

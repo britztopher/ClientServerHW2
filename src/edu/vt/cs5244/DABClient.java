@@ -26,18 +26,10 @@ import java.util.Set;
 public class DABClient implements DABAgent{
 
     private Socket connection;     
-    //using an arraylist because we only have a couple of commands to loop 
-    //through and a hashmap would be overkill
-    private final ArrayList<String> pcrList = new ArrayList<>();
-    
+
     private static  BufferedReader in;
     private static PrintWriter pw;
-    
-    public DABClient(){
-        pcrList.add("ACK,");
-        pcrList.add("GOT.");
-    }
-    
+
     @Override
     public boolean connect(String server) {
         
@@ -83,7 +75,7 @@ public class DABClient implements DABAgent{
         this.sendInt(size);
         this.readAck();
 
-    }
+    } 
 
     @Override
     public int getSize() {
